@@ -2,7 +2,6 @@ import requests
 import re
 import os
 
-# زانیارییەکانت
 MAC_ADDRESS = "12d7087e0000630d-0" 
 USER_AGENT = "iStarMedia/1.0 (Android)"
 
@@ -25,7 +24,6 @@ def get_new_token(cmd, base_url):
 
 def main():
     if not os.path.exists("channels.m3u"):
-        print("Error: channels.m3u not found!")
         return
     
     with open("channels.m3u", "r", encoding="utf-8") as f:
@@ -36,11 +34,14 @@ def main():
     for line in lines:
         line = line.strip()
         if line.startswith("http"):
+            # دۆزینەوەی بەشی سەرەکی سێرڤەر (بۆ نموونە تا پۆرتەکە)
             base_match = re.search(r'(http://.*?:\d+)', line)
+            # دۆزینەوەی ناو و ناسنامەی کەناڵەکە (ئەو بەشەی نێوان پۆرت و مۆنۆ)
             cmd_match = re.search(r':8085/(.*?)/mono\.m3u8', line)
             
             if base_match and cmd_match:
-                new_link = get_new_token(cmd_match.group(1), base_match.group(1))
+                channel_cmd = cmd_match.group(1)
+                new_link = get_new_token(channel_cmd, base_match.group(1))
                 if new_link:
                     new_list.append(new_link)
                 else:
@@ -50,8 +51,8 @@ def main():
         elif line.startswith("#EXTINF"):
             new_list.append(line)
 
+    # نووسینەوەی فایلەکە بە هەر شێوەیەک بێت بۆ ئەوەی گیتھەب هەڵە نەدات
     with open("playlist.m3u", "w", encoding="utf-8") as f:
         f.write("\n".join(new_list))
-    print("Successfully created playlist.m3u")
 
-    main()
+main()
