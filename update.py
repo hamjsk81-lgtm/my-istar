@@ -1,75 +1,51 @@
 import requests
 import re
 import time
-import random
 
 MAC = "12d7087e0000630d"
 
 def get_new_link(server_ip, channel_id):
-    timestamp = int(time.time())
-    # دروستکردنی Token ی هەڕەمەکی بۆ ئەوەی وەک مۆبایل دەرکەوێت
-    random_str = random.randint(100, 999)
-    cmd = f"ffrt+http://localhost/local-{channel_id}/mono.m3u8"
-    url = f"http://{server_ip}:8085/server/load.php?type=itv&action=create_link&cmd={cmd}&_={timestamp}&r={random_str}"
+    # ئەمە ئەو ناونیشانە نوێیەیە کە ئایستار ئێستا بەکاری دێنێت (بەبێ پۆرتی 8085)
+    url = f"http://{server_ip}/portal.php?type=itv&action=create_link&cmd=ffrt+http://localhost/local-{channel_id}/mono.m3u8"
     
-    # ئەم بەشە زۆر گرنگە بۆ تێپەڕاندنی بلۆک
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Mobile Safari/537.36',
+        'User-Agent': 'iStarMedia/1.1 (Android; 10)',
         'Cookie': f'mac={MAC}',
-        'X-Requested-With': 'com.istar.istarmedia',
-        'Accept': '*/*',
-        'Connection': 'keep-alive'
+        'X-Requested-With': 'com.istar.istarmedia'
     }
     
     try:
-        # بەکارهێنانی timeout ی کەمێک درێژتر
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            # چاپکردنی ئەنجامەکە بۆ ئەوەی بزانین بۆچی 0 دەدات
-            print(f"Server response for {channel_id}: {data}") 
-            link = data.get('cmd', '')
-            if link and 'http' in link:
-                return link
-        else:
-            print(f"Failed {channel_id}: Status {response.status_code}")
-    except Exception as e:
-        print(f"Error {channel_id}: {str(e)}")
+            return data.get('cmd', '')
+    except:
+        pass
     return None
 
 try:
     with open('channels.m3u', 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+        content = f.read()
     
-    new_content = ""
-    updated_count = 0
+    # دۆزینەوەی هەموو لینکەکان
+    pattern = r'(http://[0-9.]+(:8085)?/.*?local-(.*?)/mono\.m3u8\?.*?info=' + MAC + r')'
+    matches = re.findall(pattern, content)
+    
+    print(f"Found {len(matches)} channels. Updating...")
 
-    print("Starting update process with Advanced Headers...")
-
-    for line in lines:
-        if "local-" in line and "info=" + MAC in line:
-            match = re.search(r'http://([0-9.]+):8085/.*?local-(.*?)/', line)
-            if match:
-                ip = match.group(1)
-                channel_id = match.group(2)
-                
-                new_link = get_new_link(ip, channel_id)
-                
-                if new_link:
-                    new_content += new_link + "\n"
-                    updated_count += 1
-                else:
-                    new_content += line # ئەگەر نەگیرا، کۆنەکە بپارێزە
-            else:
-                new_content += line
-        else:
-            new_content += line
+    for full_link, port_part, channel_id in matches:
+        # درێژەی ئایپیەکە لێرە دەردەهێنین
+        server_ip = re.search(r'http://([0-9.]+)', full_link).group(1)
+        
+        new_link = get_new_link(server_ip, channel_id)
+        if new_link:
+            content = content.replace(full_link, new_link)
 
     with open('playlist.m3u', 'w', encoding='utf-8') as f:
-        f.write(new_content)
-        f.write(f"\n# Last Update: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(content)
+        f.write(f"\n# Updated: {time.ctime()}")
     
-    print(f"--- SUCCESS: {updated_count} links updated ---")
+    print("Done! Check your playlist.m3u")
 
 except Exception as e:
-    print(f"Main Error: {e}")
+    print(f"Error: {e}")
