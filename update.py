@@ -2,7 +2,7 @@ import requests
 import re
 import os
 
-# زانیارییەکانت کە پێشتر ناردت
+# زانیارییەکانت
 MAC_ADDRESS = "12d7087e0000630d-0" 
 USER_AGENT = "iStarMedia/1.0 (Android)"
 
@@ -25,6 +25,7 @@ def get_new_token(cmd, base_url):
 
 def main():
     if not os.path.exists("channels.m3u"):
+        print("Error: channels.m3u not found!")
         return
     
     with open("channels.m3u", "r", encoding="utf-8") as f:
@@ -51,6 +52,7 @@ def main():
 
     with open("playlist.m3u", "w", encoding="utf-8") as f:
         f.write("\n".join(new_list))
+    print("Successfully created playlist.m3u")
 
 if name == "main":
     main()
