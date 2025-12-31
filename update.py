@@ -54,5 +54,4 @@ def main():
         f.write("\n".join(new_list))
     print("Successfully created playlist.m3u")
 
-if name == "main":
     main()
