@@ -1,51 +1,63 @@
 import requests
 import re
 import time
+import random
 
-# زانیارییەکانت لێرە دابنێ
-MAC = "12d7087e0000630d" # ماک ئەدێرسەکەی خۆت
-SERVER_IP = "45.155.226.147" # ئایپی نوێی سێرڤەرەکە کە ئەمڕۆ گرتت
+MAC = "12d7087e0000630d"
+SERVER_IP = "45.155.226.147" # دڵنیابەرەوە ئەم ئایپییە ئیش دەکات
 
 headers = {
-    'User-Agent': 'iStarMedia/1.0 (Android)',
-    'Cookie': f'mac={MAC}'
+    'User-Agent': 'iStarMedia/1.1 (Android; 10; Build/QP1A.190711.020)',
+    'Cookie': f'mac={MAC}',
+    'Accept-Encoding': 'gzip',
+    'Connection': 'Keep-Alive'
 }
 
 def get_new_link(channel_cmd):
-    # کات زیاد دەکەین بۆ ئەوەی سێرڤەرەکە فێڵمان لێ نەکات
-    url = f"http://{SERVER_IP}:8085/server/load.php?type=itv&action=create_link&cmd={channel_cmd}&_={int(time.time())}"
+    # زیادکردنی ژمارەیەکی هەڕەمەکی بۆ ئەوەی سێرڤەرەکە وا بزانێت داواکارییەکی نوێیە
+    random_str = random.randint(10000, 99999)
+    url = f"http://{SERVER_IP}:8085/server/load.php?type=itv&action=create_link&cmd={channel_cmd}&_={int(time.time())}&rand={random_str}"
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
             data = response.json()
-            return data.get('cmd', '')
+            link = data.get('cmd', '')
+            if link and 'http' in link:
+                return link
     except Exception as e:
-        print(f"Error getting link for {channel_cmd}: {e}")
+        print(f"Error for {channel_cmd}: {e}")
     return None
 
-# لێرەدا فایلی ئەسڵی دەخوێنینەوە
 try:
-    with open('channels.m3u', 'r') as f:
+    # خوێندنەوەی فایلی سەرەکی
+    with open('channels.m3u', 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # دۆزینەوەی هەموو لینکەکان
-    links = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', content)
+    # دۆزینەوەی هەموو ئەو شوێنانەی لینکی تێدایە
+    old_links = re.findall(r'http://[0-9.]+:8085/.*?info=' + MAC, content)
     
-    for old_link in links:
-        # دەرهێنانی ناوی کەناڵەکە (cmd) لە لینکە کۆنەکە
+    updated_count = 0
+    for old_link in set(old_links): # بەکارهێنانی set بۆ ئەوەی لینکە دووبارەکان لادەین
         match = re.search(r'local-(.*?)/', old_link)
         if match:
-            cmd = f"ffrt+http://localhost/local-{match.group(1)}/mono.m3u8"
-            print(f"Updating: {match.group(1)}...")
+            channel_id = match.group(1)
+            cmd = f"ffrt+http://localhost/local-{channel_id}/mono.m3u8"
+            print(f"Requesting new link for: {channel_id}")
+            
             new_link = get_new_link(cmd)
-            if new_link:
+            if new_link and new_link != old_link:
                 content = content.replace(old_link, new_link)
-                print(f"Successfully updated: {match.group(1)}")
+                updated_count += 1
+                print(f"Done: {channel_id}")
+            else:
+                print(f"No new link for: {channel_id} (Server returned same link)")
 
-    # پاشەکەوتکردنی ئەنجامەکە لە فایلی نوێدا
-    with open('playlist.m3u', 'w') as f:
+    # پاشەکەوتکردن
+    with open('playlist.m3u', 'w', encoding='utf-8') as f:
         f.write(content)
-    print("All links updated and saved to playlist.m3u")
+    
+    print(f"Total updated links: {updated_count}")
+    print("Finished. Saved to playlist.m3u")
 
 except Exception as e:
-    print(f"Main error: {e}")
+    print(f"Main Error: {e}")
