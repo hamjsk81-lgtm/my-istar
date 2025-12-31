@@ -1,58 +1,51 @@
 import requests
 import re
-import os
+import time
 
-MAC_ADDRESS = "12d7087e0000630d-0" 
-USER_AGENT = "iStarMedia/1.0 (Android)"
+# زانیارییەکانت لێرە دابنێ
+MAC = "12d7087e0000630d" # ماک ئەدێرسەکەی خۆت
+SERVER_IP = "45.155.226.147" # ئایپی نوێی سێرڤەرەکە کە ئەمڕۆ گرتت
 
-def get_new_token(cmd, base_url):
-    params = {'type': 'itv', 'action': 'create_link', 'cmd': cmd}
-    headers = {
-        'User-Agent': USER_AGENT,
-        'Cookie': f'mac={MAC_ADDRESS}',
-        'X-User-Agent': USER_AGENT
-    }
+headers = {
+    'User-Agent': 'iStarMedia/1.0 (Android)',
+    'Cookie': f'mac={MAC}'
+}
+
+def get_new_link(channel_cmd):
+    # کات زیاد دەکەین بۆ ئەوەی سێرڤەرەکە فێڵمان لێ نەکات
+    url = f"http://{SERVER_IP}:8085/server/load.php?type=itv&action=create_link&cmd={channel_cmd}&_={int(time.time())}"
     try:
-        api_url = f"{base_url}/server/load.php"
-        res = requests.get(api_url, params=params, headers=headers, timeout=15)
-        data = res.json()
-        if 'js' in data and 'cmd' in data['js']:
-            return data['js']['cmd']
-    except:
-        return None
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get('cmd', '')
+    except Exception as e:
+        print(f"Error getting link for {channel_cmd}: {e}")
     return None
 
-def main():
-    if not os.path.exists("channels.m3u"):
-        return
+# لێرەدا فایلی ئەسڵی دەخوێنینەوە
+try:
+    with open('channels.m3u', 'r') as f:
+        content = f.read()
     
-    with open("channels.m3u", "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    new_list = ["#EXTM3U", "#EXTVLCOPT:http-user-agent=iStarMedia/1.0 (Android)"]
+    # دۆزینەوەی هەموو لینکەکان
+    links = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', content)
     
-    for line in lines:
-        line = line.strip()
-        if line.startswith("http"):
-            # دۆزینەوەی بەشی سەرەکی سێرڤەر (بۆ نموونە تا پۆرتەکە)
-            base_match = re.search(r'(http://.*?:\d+)', line)
-            # دۆزینەوەی ناو و ناسنامەی کەناڵەکە (ئەو بەشەی نێوان پۆرت و مۆنۆ)
-            cmd_match = re.search(r':8085/(.*?)/mono\.m3u8', line)
-            
-            if base_match and cmd_match:
-                channel_cmd = cmd_match.group(1)
-                new_link = get_new_token(channel_cmd, base_match.group(1))
-                if new_link:
-                    new_list.append(new_link)
-                else:
-                    new_list.append(line)
-            else:
-                new_list.append(line)
-        elif line.startswith("#EXTINF"):
-            new_list.append(line)
+    for old_link in links:
+        # دەرهێنانی ناوی کەناڵەکە (cmd) لە لینکە کۆنەکە
+        match = re.search(r'local-(.*?)/', old_link)
+        if match:
+            cmd = f"ffrt+http://localhost/local-{match.group(1)}/mono.m3u8"
+            print(f"Updating: {match.group(1)}...")
+            new_link = get_new_link(cmd)
+            if new_link:
+                content = content.replace(old_link, new_link)
+                print(f"Successfully updated: {match.group(1)}")
 
-    # نووسینەوەی فایلەکە بە هەر شێوەیەک بێت بۆ ئەوەی گیتھەب هەڵە نەدات
-    with open("playlist.m3u", "w", encoding="utf-8") as f:
-        f.write("\n".join(new_list))
+    # پاشەکەوتکردنی ئەنجامەکە لە فایلی نوێدا
+    with open('playlist.m3u', 'w') as f:
+        f.write(content)
+    print("All links updated and saved to playlist.m3u")
 
-main()
+except Exception as e:
+    print(f"Main error: {e}")
