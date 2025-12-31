@@ -1,26 +1,7 @@
-name: Auto Update IPTV
-on:
-  schedule:
-    - cron: '0 */6 * * *' # هەموو ٦ کاتژمێر جارێک خۆی نوێ دەکاتەوە
-  workflow_dispatch: # رێگەت دەدات بە دەستی خۆت تاقی بکەیتەوە
-
-jobs:
-  update:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-      - name: Install requests
-        run: pip install requests
-      - name: Run script
-        run: python update.py
-      - name: Save changes
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add playlist.m3u
-          git commit -m "Update links" || echo "No changes"
-          git push
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add playlist.m3u
+        git commit -m "Auto-update IPTV links" || echo "No changes to commit"
+        git push
